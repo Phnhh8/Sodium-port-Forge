@@ -9,10 +9,19 @@ object BuildConfig {
     const val JAVA_VERSION = 17
     const val MOD_VERSION = "0.6.0-forge-1.20.1"
 
+    const val CURSEFORGE_PROJECT_ID = ""
+    const val MODRINTH_PROJECT_ID = ""
+    const val RELEASE_TAG = "0.6.0"
+
     fun createVersionString(project: Project): String {
-        val builder = StringBuilder()
-        builder.append(MOD_VERSION)
-        builder.append("+mc").append(MINECRAFT_VERSION)
-        return builder.toString()
+        return "$MOD_VERSION+mc$MINECRAFT_VERSION"
+    }
+
+    fun getChangelog(project: Project): String {
+        return "Sodium Forge 1.20.1 Port"
+    }
+
+    fun calculateGitHash(project: Project): String {
+        return "0000000"
     }
 }
