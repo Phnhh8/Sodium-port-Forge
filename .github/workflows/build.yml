@@ -9,44 +9,92 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. Lấy các file Forge bạn vừa tạo trên repo
       - name: Checkout Forge Port Files
         uses: actions/checkout@v4
         with:
           path: port-files
 
-      # 2. Tự động tải mã nguồn Sodium gốc (không lo lỗi cắt URL)
       - name: Checkout Official Sodium Source
         uses: actions/checkout@v4
         with:
           repository: CaffeineMC/sodium
           path: sodium-base
 
-      # 3. Gộp mã nguồn gốc và các file Forge 1.20.1 của bạn
-      - name: Merge Forge Files
+      - name: Merge and Patch Forge 1.20.1
         run: |
           cp -rn sodium-base/* .
           cp -rn sodium-base/.[!.]* . 2>/dev/null || true
           cp -rf port-files/forge ./
-          cp -f port-files/settings.gradle.kts ./
+          
+          # Nối thêm module :forge vào settings.gradle.kts gốc của Sodium
+          echo "" >> settings.gradle.kts
+          echo 'include(":forge")' >> settings.gradle.kts
+
+          # Ghi đè forge/build.gradle.kts chuẩn Gradle 9 (LegacyForge ModDev)
+          cat << 'EOF' > forge/build.gradle.kts
+          plugins {
+              id("multiloader-platform")
+              id("net.neoforged.moddev.legacyforge") version "2.0.80"
+          }
+
+          base {
+              archivesName.set("sodium-forge")
+          }
+
+          legacyForge {
+              version = BuildConfig.FORGE_VERSION
+          }
+
+          dependencies {
+              implementation(project(":common"))
+          }
+          EOF
+
+          # Cập nhật BuildConfig.kt đầy đủ biến cho MC 1.20.1
           mkdir -p buildSrc/src/main/kotlin
-          cp -f port-files/buildSrc/src/main/kotlin/BuildConfig.kt buildSrc/src/main/kotlin/
+          cat << 'EOF' > buildSrc/src/main/kotlin/BuildConfig.kt
+          import org.gradle.api.Project
+
+          object BuildConfig {
+              const val MINECRAFT_VERSION = "1.20.1"
+              const val FORGE_VERSION = "1.20.1-47.3.0"
+              const val NEOFORGE_VERSION = "20.4.237"
+              const val FABRIC_LOADER_VERSION = "0.15.11"
+              const val FABRIC_API_VERSION = "0.92.2+1.20.1"
+              const val JAVA_VERSION = 17
+              const val MOD_VERSION = "0.6.0-forge-1.20.1"
+
+              const val CURSEFORGE_PROJECT_ID = ""
+              const val MODRINTH_PROJECT_ID = ""
+              const val RELEASE_TAG = "0.6.0"
+
+              fun createVersionString(project: Project): String {
+                  return "$MOD_VERSION+mc$MINECRAFT_VERSION"
+              }
+
+              fun getChangelog(project: Project): String {
+                  return "Sodium Forge 1.20.1 Port"
+              }
+
+              fun calculateGitHash(project: Project): String {
+                  return "0000000"
+              }
+          }
+          EOF
+
           rm -rf port-files sodium-base
 
-      # 4. Cài đặt Java 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 5. Chạy lệnh build ra file .jar
       - name: Build with Gradle
         run: |
           chmod +x gradlew
           ./gradlew :forge:build --stacktrace
 
-      # 6. Đóng gói file .jar thành phẩm để tải về
       - name: Upload Jar
         uses: actions/upload-artifact@v4
         with:
