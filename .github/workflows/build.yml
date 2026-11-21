@@ -15,16 +15,18 @@ jobs:
         with:
           path: port-files
 
-      # 2. Tự động tải mã nguồn Sodium gốc từ GitHub chính chủ
-      - name: Clone Official Sodium Source
-        run: |
-          git clone --depth 1 https://github.com sodium-base
-          cp -rn sodium-base/* .
-          cp -rn sodium-base/.[!.]* . 2>/dev/null || true
+      # 2. Tự động tải mã nguồn Sodium gốc (không lo lỗi cắt URL)
+      - name: Checkout Official Sodium Source
+        uses: actions/checkout@v4
+        with:
+          repository: CaffeineMC/sodium
+          path: sodium-base
 
-      # 3. Chép đè các file port Forge 1.20.1 của bạn vào mã nguồn gốc
+      # 3. Gộp mã nguồn gốc và các file Forge 1.20.1 của bạn
       - name: Merge Forge Files
         run: |
+          cp -rn sodium-base/* .
+          cp -rn sodium-base/.[!.]* . 2>/dev/null || true
           cp -rf port-files/forge ./
           cp -f port-files/settings.gradle.kts ./
           mkdir -p buildSrc/src/main/kotlin
@@ -44,7 +46,7 @@ jobs:
           chmod +x gradlew
           ./gradlew :forge:build --stacktrace
 
-      # 6. Đóng gói file .jar thành phẩm để bạn tải về
+      # 6. Đóng gói file .jar thành phẩm để tải về
       - name: Upload Jar
         uses: actions/upload-artifact@v4
         with:
