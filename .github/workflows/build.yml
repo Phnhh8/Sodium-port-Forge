@@ -14,12 +14,12 @@ jobs:
         with:
           path: port-files
 
-      # Tải đúng nhánh MC 1.20.1 của Sodium (chạy thuần Java 17)
+      # Tải đúng nhánh MC 1.20.1-0.5.8 của Sodium (chạy thuần Java 17)
       - name: Checkout Official Sodium 1.20.1 Source
         uses: actions/checkout@v4
         with:
           repository: CaffeineMC/sodium
-          ref: mc1.20.1
+          ref: mc1.20.1-0.5.8
           path: sodium-base
 
       - name: Merge and Patch Forge 1.20.1
