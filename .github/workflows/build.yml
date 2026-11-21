@@ -27,7 +27,7 @@ jobs:
           cp -rn sodium-base/.[!.]* . 2>/dev/null || true
           cp -rf port-files/forge ./
           
-          # 1. Tạo forge/build.gradle với đầy đủ thư viện Forge 1.20.1 và Fabric/Sponge Mixin
+          # 1. Tạo forge/build.gradle (tách chuỗi URL để trình duyệt không cắt tên miền maven)
           rm -f forge/build.gradle.kts
           cat << 'EOF' > forge/build.gradle
           plugins {
@@ -42,16 +42,17 @@ jobs:
 
           repositories {
               mavenCentral()
-              maven { url = 'https://fabricmc.net' }
-              maven { url = 'https://minecraftforge.net' }
+              maven { url = uri("https://" + "maven.fabricmc.net/") }
+              maven { url = uri("https://" + "maven.minecraftforge.net/") }
           }
 
           dependencies {
               implementation rootProject
+              compileOnly rootProject.configurations.compileClasspath
               compileOnly 'net.fabricmc:sponge-mixin:0.12.5+mixin.0.8.5'
-              compileOnly 'net.minecraftforge:fmlcore:1.20.1-47.3.0'
-              compileOnly 'net.minecraftforge:javafmllanguage:1.20.1-47.3.0'
-              compileOnly 'net.minecraftforge:fmlloader:1.20.1-47.3.0'
+              compileOnly 'net.minecraftforge:fmlcore:1.20.1-47.2.0'
+              compileOnly 'net.minecraftforge:javafmllanguage:1.20.1-47.2.0'
+              compileOnly 'net.minecraftforge:fmlloader:1.20.1-47.2.0'
           }
 
           tasks.withType(Jar).configureEach {
