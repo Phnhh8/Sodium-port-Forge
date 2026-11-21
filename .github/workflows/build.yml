@@ -33,7 +33,7 @@ jobs:
           cp -rn sodium-base/.[!.]* . 2>/dev/null || true
           cp -rf port-files/forge ./
 
-          # 1. Tạo lớp Shim (cầu nối) thay thế FabricLoader & ClientModInitializer để Sodium gốc chạy trên Forge
+          # 1. Tạo lớp Shim (cầu nối) thay thế FabricLoader & ClientModInitializer
           mkdir -p forge/src/main/java/net/fabricmc/api
           cat << 'EOF' > forge/src/main/java/net/fabricmc/api/ClientModInitializer.java
           package net.fabricmc.api;
@@ -170,18 +170,9 @@ jobs:
           chmod +x gradlew
           ./gradlew :forge:build --stacktrace
 
-      # 4. Remap toàn bộ file Jar từ Fabric Intermediary sang Forge SRG 1.20.1
-      - name: Remap Intermediary to Forge SRG
+      # 4. Đóng gói file Jar thành phẩm (giữ nguyên tên gói me.jellysquid.mods.sodium)
+      - name: Prepare Final Jar
         run: |
-          mkdir -p remap-tools && cd remap-tools
-          curl -sL "https://fabricmc.net" -o remapper.jar
-          curl -sL "https://fabricmc.net" -o inter.jar
-          curl -sL "https://minecraftforge.net" -o mcp.zip
-          unzip -p inter.jar mappings/mappings.tiny > inter.tiny
-          unzip -p mcp.zip config/joined.tsrg > srg.tsrg
-          cd ..
-          
-          # Tạo bản remapped (giữ nguyên tên gói me.jellysquid.mods.sodium)
           cp forge/build/libs/sodium-forge-1.20.1-*.jar forge/build/libs/sodium-1.20.1-forge-final.jar
 
       - name: Upload Final Sodium Jar
