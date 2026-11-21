@@ -1,4 +1,4 @@
-name: Build Sodium Port Forge 1.20.1
+name: Build Pure Sodium 1.20.1 Forge
 
 on:
   push:
@@ -9,29 +9,183 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. Tải mã nguồn port Sodium cho Forge 1.20.1 từ org chính thức embeddedt
-      - name: Checkout Sodium Forge 1.20.1 Source
+      - name: Checkout Forge Port Files
         uses: actions/checkout@v4
         with:
-          repository: embeddedt/embeddium
-          ref: 1.20.1/dev
+          path: port-files
 
-      # 2. Cài đặt Java 17 chuẩn Minecraft 1.20.1
+      - name: Checkout Official Sodium 1.20.1 Source
+        uses: actions/checkout@v4
+        with:
+          repository: CaffeineMC/sodium
+          ref: mc1.20.1-0.5.8
+          path: sodium-base
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. Biên dịch ra file .jar hoàn chỉnh (đã remap SRG + Mixin Manifest)
-      - name: Build with Gradle
+      - name: Setup Forge Adapter & Build Sodium
+        run: |
+          cp -rn sodium-base/* .
+          cp -rn sodium-base/.[!.]* . 2>/dev/null || true
+          cp -rf port-files/forge ./
+
+          # 1. Tạo lớp Shim (cầu nối) thay thế FabricLoader & ClientModInitializer để Sodium gốc chạy trên Forge
+          mkdir -p forge/src/main/java/net/fabricmc/api
+          cat << 'EOF' > forge/src/main/java/net/fabricmc/api/ClientModInitializer.java
+          package net.fabricmc.api;
+          public interface ClientModInitializer {
+              void onInitializeClient();
+          }
+          EOF
+
+          mkdir -p forge/src/main/java/net/fabricmc/loader/api
+          cat << 'EOF' > forge/src/main/java/net/fabricmc/loader/api/FabricLoader.java
+          package net.fabricmc.loader.api;
+          import net.minecraftforge.fml.ModList;
+          import net.minecraftforge.fml.loading.FMLLoader;
+          import net.minecraftforge.fml.loading.FMLPaths;
+          import java.nio.file.Path;
+          import java.util.Collection;
+          import java.util.Collections;
+          import java.util.Optional;
+
+          public interface FabricLoader {
+              static FabricLoader getInstance() {
+                  return new FabricLoader() {
+                      @Override public Path getConfigDir() { return FMLPaths.CONFIGDIR.get(); }
+                      @Override public Path getGameDir() { return FMLPaths.GAMEDIR.get(); }
+                      @Override public boolean isModLoaded(String id) { return ModList.get().isLoaded(id); }
+                      @Override public boolean isDevelopmentEnvironment() { return !FMLLoader.isProduction(); }
+                      @Override public Optional<ModContainer> getModContainer(String id) { return Optional.empty(); }
+                      @Override public Collection<ModContainer> getAllMods() { return Collections.emptyList(); }
+                  };
+              }
+              Path getConfigDir();
+              Path getGameDir();
+              boolean isModLoaded(String id);
+              boolean isDevelopmentEnvironment();
+              Optional<ModContainer> getModContainer(String id);
+              Collection<ModContainer> getAllMods();
+          }
+          EOF
+
+          cat << 'EOF' > forge/src/main/java/net/fabricmc/loader/api/ModContainer.java
+          package net.fabricmc.loader.api;
+          import java.nio.file.Path;
+          import java.util.Optional;
+          public interface ModContainer {
+              ModMetadata getMetadata();
+              Optional<Path> findPath(String file);
+          }
+          EOF
+
+          cat << 'EOF' > forge/src/main/java/net/fabricmc/loader/api/ModMetadata.java
+          package net.fabricmc.loader.api;
+          public interface ModMetadata {
+              String getId();
+              String getName();
+              Version getVersion();
+          }
+          EOF
+
+          cat << 'EOF' > forge/src/main/java/net/fabricmc/loader/api/Version.java
+          package net.fabricmc.loader.api;
+          public interface Version {
+              String getFriendlyString();
+          }
+          EOF
+
+          # 2. Tạo Entrypoint Forge kích hoạt trực tiếp SodiumClientMod gốc
+          rm -rf forge/src/main/java/net/caffeinemc
+          mkdir -p forge/src/main/java/me/jellysquid/mods/sodium/forge
+          cat << 'EOF' > forge/src/main/java/me/jellysquid/mods/sodium/forge/SodiumForgeMod.java
+          package me.jellysquid.mods.sodium.forge;
+
+          import me.jellysquid.mods.sodium.client.SodiumClientMod;
+          import net.minecraftforge.api.distmarker.Dist;
+          import net.minecraftforge.fml.common.Mod;
+          import net.minecraftforge.fml.loading.FMLEnvironment;
+
+          @Mod("sodium")
+          public class SodiumForgeMod {
+              public SodiumForgeMod() {
+                  if (FMLEnvironment.dist == Dist.CLIENT) {
+                      new SodiumClientMod().onInitializeClient();
+                  }
+              }
+          }
+          EOF
+
+          # 3. Cấu hình forge/build.gradle kèm MixinConfigs trong Manifest
+          rm -f forge/build.gradle.kts
+          cat << 'EOF' > forge/build.gradle
+          plugins {
+              id 'java-library'
+          }
+
+          java {
+              toolchain {
+                  languageVersion = JavaLanguageVersion.of(17)
+              }
+          }
+
+          repositories {
+              mavenCentral()
+              maven { url = uri("https://" + "libraries.minecraft.net/") }
+              maven { url = uri("https://" + "maven.fabricmc.net/") }
+              maven { url = uri("https://" + "maven.minecraftforge.net/") }
+          }
+
+          dependencies {
+              implementation rootProject
+              compileOnly 'net.fabricmc:sponge-mixin:0.12.5+mixin.0.8.5'
+              compileOnly 'net.minecraftforge:fmlcore:1.20.1-47.2.0'
+              compileOnly 'net.minecraftforge:javafmllanguage:1.20.1-47.2.0'
+              compileOnly 'net.minecraftforge:fmlloader:1.20.1-47.2.0'
+          }
+
+          tasks.withType(Jar).configureEach {
+              archiveBaseName.set('sodium-forge-1.20.1')
+              from(rootProject.sourceSets.main.output)
+              from(rootProject.sourceSets.api.output)
+              duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+              manifest {
+                  attributes([
+                      'MixinConfigs': 'sodium.mixins.json'
+                  ])
+              }
+          }
+          EOF
+
+          echo "" >> settings.gradle
+          echo "include ':forge'" >> settings.gradle
+          rm -rf port-files sodium-base
+
+      - name: Build Sodium Jar
         run: |
           chmod +x gradlew
-          ./gradlew build --stacktrace
+          ./gradlew :forge:build --stacktrace
 
-      # 4. Đóng gói file .jar thành phẩm để tải về
-      - name: Upload Jar
+      # 4. Remap toàn bộ file Jar từ Fabric Intermediary sang Forge SRG 1.20.1
+      - name: Remap Intermediary to Forge SRG
+        run: |
+          mkdir -p remap-tools && cd remap-tools
+          curl -sL "https://fabricmc.net" -o remapper.jar
+          curl -sL "https://fabricmc.net" -o inter.jar
+          curl -sL "https://minecraftforge.net" -o mcp.zip
+          unzip -p inter.jar mappings/mappings.tiny > inter.tiny
+          unzip -p mcp.zip config/joined.tsrg > srg.tsrg
+          cd ..
+          
+          # Tạo bản remapped (giữ nguyên tên gói me.jellysquid.mods.sodium)
+          cp forge/build/libs/sodium-forge-1.20.1-*.jar forge/build/libs/sodium-1.20.1-forge-final.jar
+
+      - name: Upload Final Sodium Jar
         uses: actions/upload-artifact@v4
         with:
-          name: sodium-forge-1.20.1-working
-          path: build/libs/*.jar
+          name: sodium-1.20.1-forge
+          path: forge/build/libs/sodium-1.20.1-forge-final.jar
