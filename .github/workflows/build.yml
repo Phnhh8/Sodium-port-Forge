@@ -27,7 +27,7 @@ jobs:
           cp -rn sodium-base/.[!.]* . 2>/dev/null || true
           cp -rf port-files/forge ./
           
-          # Xóa file .kts cũ của 1.21 và tạo forge/build.gradle chuẩn cho nhánh mc1.20.1-0.5.8
+          # 1. Tạo forge/build.gradle với đầy đủ thư viện Forge 1.20.1 và Fabric/Sponge Mixin
           rm -f forge/build.gradle.kts
           cat << 'EOF' > forge/build.gradle
           plugins {
@@ -42,17 +42,62 @@ jobs:
 
           repositories {
               mavenCentral()
+              maven { url = 'https://fabricmc.net' }
               maven { url = 'https://minecraftforge.net' }
-              maven { url = 'https://spongepowered.org' }
           }
 
           dependencies {
               implementation rootProject
-              compileOnly 'org.spongepowered:mixin:0.8.5'
+              compileOnly 'net.fabricmc:sponge-mixin:0.12.5+mixin.0.8.5'
+              compileOnly 'net.minecraftforge:fmlcore:1.20.1-47.3.0'
+              compileOnly 'net.minecraftforge:javafmllanguage:1.20.1-47.3.0'
+              compileOnly 'net.minecraftforge:fmlloader:1.20.1-47.3.0'
+          }
+
+          tasks.withType(Jar).configureEach {
+              archiveBaseName.set('sodium-forge-1.20.1')
+              from(rootProject.sourceSets.main.output)
+              from(rootProject.sourceSets.api.output)
+              duplicatesStrategy = DuplicatesStrategy.EXCLUDE
           }
           EOF
 
-          # Nối thêm module :forge vào settings.gradle gốc
+          # 2. Cập nhật SodiumForgeMod.java khớp với package me.jellysquid.mods.sodium của bản 0.5.8
+          rm -rf forge/src/main/java/net
+          mkdir -p forge/src/main/java/me/jellysquid/mods/sodium/forge
+          cat << 'EOF' > forge/src/main/java/me/jellysquid/mods/sodium/forge/SodiumForgeMod.java
+          package me.jellysquid.mods.sodium.forge;
+
+          import me.jellysquid.mods.sodium.client.SodiumClientMod;
+          import net.minecraftforge.api.distmarker.Dist;
+          import net.minecraftforge.fml.common.Mod;
+          import net.minecraftforge.fml.loading.FMLEnvironment;
+
+          @Mod("sodium")
+          public class SodiumForgeMod {
+              public SodiumForgeMod() {
+                  if (FMLEnvironment.dist == Dist.CLIENT) {
+                      SodiumClientMod.logger().info("Loaded Sodium Forge 1.20.1 Port!");
+                  }
+              }
+          }
+          EOF
+
+          # 3. Cập nhật mixins json khớp package me.jellysquid
+          cat << 'EOF' > forge/src/main/resources/sodium-forge.mixins.json
+          {
+            "required": true,
+            "minVersion": "0.8.5",
+            "package": "me.jellysquid.mods.sodium.forge.mixin",
+            "compatibilityLevel": "JAVA_17",
+            "client": [],
+            "injectors": {
+              "defaultRequire": 1
+            }
+          }
+          EOF
+
+          # 4. Nối thêm module :forge vào settings.gradle gốc
           if [ -f settings.gradle.kts ]; then
             echo "" >> settings.gradle.kts
             echo 'include(":forge")' >> settings.gradle.kts
