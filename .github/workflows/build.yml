@@ -27,7 +27,7 @@ jobs:
           cp -rn sodium-base/.[!.]* . 2>/dev/null || true
           cp -rf port-files/forge ./
           
-          # 1. Tạo forge/build.gradle (tách chuỗi URL để trình duyệt không cắt tên miền maven)
+          # 1. Tạo forge/build.gradle chuẩn Gradle 8.5 (bỏ dòng configurations.compileClasspath)
           rm -f forge/build.gradle.kts
           cat << 'EOF' > forge/build.gradle
           plugins {
@@ -48,7 +48,6 @@ jobs:
 
           dependencies {
               implementation rootProject
-              compileOnly rootProject.configurations.compileClasspath
               compileOnly 'net.fabricmc:sponge-mixin:0.12.5+mixin.0.8.5'
               compileOnly 'net.minecraftforge:fmlcore:1.20.1-47.2.0'
               compileOnly 'net.minecraftforge:javafmllanguage:1.20.1-47.2.0'
