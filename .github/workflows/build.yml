@@ -27,7 +27,7 @@ jobs:
           cp -rn sodium-base/.[!.]* . 2>/dev/null || true
           cp -rf port-files/forge ./
           
-          # 1. Tạo forge/build.gradle chuẩn Gradle 8.5 (bỏ dòng configurations.compileClasspath)
+          # 1. Tạo forge/build.gradle bổ sung kho Mojang libraries.minecraft.net
           rm -f forge/build.gradle.kts
           cat << 'EOF' > forge/build.gradle
           plugins {
@@ -42,6 +42,7 @@ jobs:
 
           repositories {
               mavenCentral()
+              maven { url = uri("https://" + "libraries.minecraft.net/") }
               maven { url = uri("https://" + "maven.fabricmc.net/") }
               maven { url = uri("https://" + "maven.minecraftforge.net/") }
           }
