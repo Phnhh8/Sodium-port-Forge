@@ -1,0 +1,52 @@
+name: Build Forge 1.20.1
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Lấy các file Forge bạn vừa tạo trên repo
+      - name: Checkout Forge Port Files
+        uses: actions/checkout@v4
+        with:
+          path: port-files
+
+      # 2. Tự động tải mã nguồn Sodium gốc từ GitHub chính chủ
+      - name: Clone Official Sodium Source
+        run: |
+          git clone --depth 1 https://github.com sodium-base
+          cp -rn sodium-base/* .
+          cp -rn sodium-base/.[!.]* . 2>/dev/null || true
+
+      # 3. Chép đè các file port Forge 1.20.1 của bạn vào mã nguồn gốc
+      - name: Merge Forge Files
+        run: |
+          cp -rf port-files/forge ./
+          cp -f port-files/settings.gradle.kts ./
+          mkdir -p buildSrc/src/main/kotlin
+          cp -f port-files/buildSrc/src/main/kotlin/BuildConfig.kt buildSrc/src/main/kotlin/
+          rm -rf port-files sodium-base
+
+      # 4. Cài đặt Java 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # 5. Chạy lệnh build ra file .jar
+      - name: Build with Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew :forge:build --stacktrace
+
+      # 6. Đóng gói file .jar thành phẩm để bạn tải về
+      - name: Upload Jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: sodium-forge-1.20.1
+          path: forge/build/libs/*.jar
