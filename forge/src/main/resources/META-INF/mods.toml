@@ -1,0 +1,25 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="LGPL-3.0-only"
+
+[[mods]]
+modId="sodium"
+version="${file.jarVersion}"
+displayName="Sodium (Forge 1.20.1 Port)"
+description='''
+A modern rendering engine and client-side optimization mod for Minecraft.
+'''
+
+[[dependencies.sodium]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47.1.0,)"
+    ordering="NONE"
+    side="CLIENT"
+
+[[dependencies.sodium]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="CLIENT"
